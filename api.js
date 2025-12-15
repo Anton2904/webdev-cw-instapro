@@ -106,16 +106,22 @@ export async function deletePost({ token, postId }) {
  * body: { login, name, password }
  */
 export async function registerUser({ login, name, password }) {
-  const res = await fetch(`${USERS_API}`, {
+  const res = await fetch("https://wedev-api.sky.pro/api/user", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ login, name, password }),
+    body: JSON.stringify({
+      login: login.trim(),
+      name: name.trim(),
+      password: password,
+    }),
   });
+
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error((data && data.message) || "Ошибка регистрации");
+    console.error("REGISTER ERROR:", data);
+    throw new Error(data.error || "Ошибка регистрации");
   }
-  const data = await res.json();
+
   return data.user;
 }
 
@@ -125,15 +131,19 @@ export async function registerUser({ login, name, password }) {
  * body: { login, password }
  */
 export async function loginUser({ login, password }) {
-  const res = await fetch(`${USERS_API}/login`, {
+  const res = await fetch("https://wedev-api.sky.pro/api/user/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ login, password }),
+    body: JSON.stringify({
+      login: login.trim(),
+      password: password,
+    }),
   });
+
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error((data && data.message) || "Ошибка входа");
+    throw new Error(data.error || "Ошибка входа");
   }
-  const data = await res.json();
+
   return data.user;
 }
