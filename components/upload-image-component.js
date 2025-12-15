@@ -1,80 +1,55 @@
-import { uploadImage } from "../api.js";
-
 /**
- * Компонент загрузки изображения.
- * Этот компонент позволяет пользователю загружать изображение и отображать его превью.
- * Если изображение уже загружено, пользователь может заменить его.
+ * renderUploadImageComponent({ element, onImageUrlChange })
  *
- * @param {HTMLElement} params.element - HTML-элемент, в который будет рендериться компонент.
- * @param {Function} params.onImageUrlChange - Функция, вызываемая при изменении URL изображения.
- *                                            Принимает один аргумент - новый URL изображения или пустую строку.
+ * element — DOM-элемент контейнер, куда компонент рендерит
+ * onImageUrlChange(url) — callback с url загруженного изображения (или data URL)
  */
+
 export function renderUploadImageComponent({ element, onImageUrlChange }) {
-  /**
-   * URL текущего изображения.
-   * Изначально пуст, пока пользователь не загрузит изображение.
-   * @type {string}
-   */
-  let imageUrl = "";
-
-  /**
-   * Функция рендеринга компонента.
-   * Отображает интерфейс компонента в зависимости от состояния: 
-   * либо форма выбора файла, либо превью загруженного изображения с кнопкой замены.
-   */
-  const render = () => {
-    element.innerHTML = `
-      <div class="upload-image">
-        ${
-          imageUrl
-            ? `
-            <div class="file-upload-image-container">
-              <img class="file-upload-image" src="${imageUrl}" alt="Загруженное изображение">
-              <button class="file-upload-remove-button button">Заменить фото</button>
-            </div>
-            `
-            : `
-            <label class="file-upload-label secondary-button">
-              <input
-                type="file"
-                class="file-upload-input"
-                style="display:none"
-              />
-              Выберите фото
-            </label>
-          `
-        }
+  element.innerHTML = `
+    <div class="upload-block">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input class="input-inline upload-url-input" placeholder="Вставьте ссылку на изображение" />
+        <button class="upload-url-button">OK</button>
       </div>
-    `;
+      <div style="margin-top:8px;">
+        <label class="small">Или выберите файл (будет использован data URL)</label>
+        <input type="file" class="upload-file-input" accept="image/*" />
+      </div>
+      <div class="upload-preview" style="margin-top:8px;display:none;">
+        <img style="max-width:100%;height:auto;border-radius:6px" class="upload-preview-img" />
+      </div>
+    </div>
+  `;
 
-    // Обработчик выбора файла
-    const fileInputElement = element.querySelector(".file-upload-input");
-    fileInputElement?.addEventListener("change", () => {
-      const file = fileInputElement.files[0];
-      if (file) {
-        const labelEl = document.querySelector(".file-upload-label");
-        labelEl.setAttribute("disabled", true);
-        labelEl.textContent = "Загружаю файл...";
-        
-        // Загружаем изображение с помощью API
-        uploadImage({ file }).then(({ fileUrl }) => {
-          imageUrl = fileUrl; // Сохраняем URL загруженного изображения
-          onImageUrlChange(imageUrl); // Уведомляем о изменении URL изображения
-          render(); // Перерисовываем компонент с новым состоянием
-        });
-      }
-    });
+  const urlInput = element.querySelector(".upload-url-input");
+  const urlBtn = element.querySelector(".upload-url-button");
+  const fileInput = element.querySelector(".upload-file-input");
+  const previewBlock = element.querySelector(".upload-preview");
+  const previewImg = element.querySelector(".upload-preview-img");
 
-    // Обработчик удаления изображения
-    element
-      .querySelector(".file-upload-remove-button")
-      ?.addEventListener("click", () => {
-        imageUrl = ""; // Сбрасываем URL изображения
-        onImageUrlChange(imageUrl); // Уведомляем об изменении URL изображения
-        render(); // Перерисовываем компонент
-      });
-  };
+  urlBtn.addEventListener("click", () => {
+    const url = urlInput.value.trim();
+    if (!url) {
+      alert("Введите URL изображения");
+      return;
+    }
+    // Простая проверка URL
+    previewImg.src = url;
+    previewBlock.style.display = "block";
+    if (typeof onImageUrlChange === "function") onImageUrlChange(url);
+  });
 
-  // Инициализация компонента
-  render();
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const dataUrl = e.target.result;
+      previewImg.src = dataUrl;
+      previewBlock.style.display = "block";
+      if (typeof onImageUrlChange === "function") onImageUrlChange(dataUrl);
+    };
+    reader.readAsDataURL(f);
+  });
 }

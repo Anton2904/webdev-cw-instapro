@@ -1,63 +1,51 @@
-import { goToPage, logout, user } from "../index.js";
-import { ADD_POSTS_PAGE, AUTH_PAGE, POSTS_PAGE } from "../routes.js";
+import { getStoredUser, clearUser as clearUserStorage } from "../helpers.js";
+import { goToPage } from "../index.js";
+import { POSTS_PAGE, ADD_POSTS_PAGE, AUTH_PAGE } from "../routes.js";
 
-/**
- * Компонент заголовка страницы.
- * Этот компонент отображает шапку страницы с логотипом, кнопкой добавления постов/входа и кнопкой выхода (если пользователь авторизован).
- * 
- * @param {HTMLElement} params.element - HTML-элемент, в который будет рендериться заголовок.
- * @returns {HTMLElement} Возвращает элемент заголовка после рендеринга.
- */
 export function renderHeaderComponent({ element }) {
-  /**
-   * Рендерит содержимое заголовка.
-   */
-  element.innerHTML = `
-  <div class="page-header">
-      <h1 class="logo">instapro</h1>
-      <button class="header-button add-or-login-button">
-      ${
-        user
-          ? `<div title="Добавить пост" class="add-post-sign"></div>`
-          : "Войти"
-      }
-      </button>
-      ${
-        user
-          ? `<button title="${user.name}" class="header-button logout-button">Выйти</button>`
-          : ""
-      }  
-  </div>
-  `;
+  const user = getStoredUser();
 
-  /**
-   * Обработчик клика по кнопке "Добавить пост"/"Войти".
-   * Если пользователь авторизован, перенаправляет на страницу добавления постов.
-   * Если пользователь не авторизован, перенаправляет на страницу авторизации.
-   */
-  element
-    .querySelector(".add-or-login-button")
-    .addEventListener("click", () => {
-      if (user) {
-        goToPage(ADD_POSTS_PAGE);
-      } else {
-        goToPage(AUTH_PAGE);
-      }
+  const headerEl = document.createElement("div");
+  headerEl.className = "header";
+
+  const left = document.createElement("div");
+  left.className = "logo";
+  left.textContent = "instapro";
+
+  const actions = document.createElement("div");
+  actions.className = "header-actions";
+
+  // Home button
+  const btnHome = document.createElement("button");
+  btnHome.textContent = "Лента";
+  btnHome.addEventListener("click", () => goToPage(POSTS_PAGE));
+  actions.appendChild(btnHome);
+
+  if (user) {
+    const btnAdd = document.createElement("button");
+    btnAdd.textContent = "Добавить пост";
+    btnAdd.addEventListener("click", () => goToPage(ADD_POSTS_PAGE));
+    actions.appendChild(btnAdd);
+
+    const btnLogout = document.createElement("button");
+    btnLogout.textContent = "Выйти";
+    btnLogout.addEventListener("click", () => {
+      clearUserStorage();
+      // reload posts as non-auth user
+      goToPage(POSTS_PAGE);
     });
+    actions.appendChild(btnLogout);
+  } else {
+    const btnLogin = document.createElement("button");
+    btnLogin.textContent = "Войти / Регистрация";
+    btnLogin.addEventListener("click", () => goToPage(AUTH_PAGE));
+    actions.appendChild(btnLogin);
+  }
 
-  /**
-   * Обработчик клика по логотипу.
-   * Перенаправляет на страницу с постами.
-   */
-  element.querySelector(".logo").addEventListener("click", () => {
-    goToPage(POSTS_PAGE);
-  });
+  headerEl.appendChild(left);
+  headerEl.appendChild(actions);
 
-  /**
-   * Обработчик клика по кнопке "Выйти".
-   * Если кнопка существует (т.е. пользователь авторизован), вызывает функцию `logout`.
-   */
-  element.querySelector(".logout-button")?.addEventListener("click", logout);
-
-  return element;
+  // render into provided element
+  element.innerHTML = "";
+  element.appendChild(headerEl);
 }

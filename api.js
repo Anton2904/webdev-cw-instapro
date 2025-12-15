@@ -1,69 +1,139 @@
-// Замени на свой, чтобы получить независимый от других набор данных.
-// "боевая" версия инстапро лежит в ключе prod
-const personalKey = "prod";
-const baseHost = "https://webdev-hw-api.vercel.app";
-const postsHost = `${baseHost}/api/v1/${personalKey}/instapro`;
+// API wrapper — использует ключ prod (как вы попросили)
+const API_BASE = "https://wedev-api.sky.pro/api/v1/prod/instapro";
+const USERS_API = "https://wedev-api.sky.pro/api/user";
 
-export function getPosts({ token }) {
-  return fetch(postsHost, {
-    method: "GET",
+/**
+ * Получить общие посты
+ * Возвращает массив постов
+ */
+export async function getPosts() {
+  const res = await fetch(`${API_BASE}/`);
+  if (!res.ok) {
+    throw new Error("Не удалось получить посты");
+  }
+  const data = await res.json();
+  // API возвращает { posts: [...] }
+  return data.posts || [];
+}
+
+/**
+ * Получить посты конкретного пользователя
+ */
+export async function getUserPosts(userId) {
+  const res = await fetch(`${API_BASE}/user-posts/${userId}`);
+  if (!res.ok) {
+    throw new Error("Не удалось получить посты пользователя");
+  }
+  const data = await res.json();
+  return data.posts || [];
+}
+
+/**
+ * Создать пост (Authorization: Bearer <token>)
+ */
+export async function createPost({ token, description, imageUrl }) {
+  if (!token) throw new Error("Требуется авторизация");
+  const res = await fetch(`${API_BASE}/`, {
+    method: "POST",
     headers: {
       Authorization: token,
+      "Content-Type": "application/json",
     },
-  })
-    .then((response) => {
-      if (response.status === 401) {
-        throw new Error("Нет авторизации");
-      }
-
-      return response.json();
-    })
-    .then((data) => {
-      return data.posts;
-    });
+    body: JSON.stringify({ description, imageUrl }),
+  });
+  if (res.status === 400) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || "Некорректные данные");
+  }
+  if (!res.ok) {
+    throw new Error("Ошибка при создании поста");
+  }
+  return res.json();
 }
 
-export function registerUser({ login, password, name, imageUrl }) {
-  return fetch(baseHost + "/api/user", {
+/**
+ * Лайк (POST /:id/like)
+ */
+export async function addLike({ token, postId }) {
+  if (!token) throw new Error("Требуется авторизация");
+  const res = await fetch(`${API_BASE}/${postId}/like`, {
     method: "POST",
-    body: JSON.stringify({
-      login,
-      password,
-      name,
-      imageUrl,
-    }),
-  }).then((response) => {
-    if (response.status === 400) {
-      throw new Error("Такой пользователь уже существует");
-    }
-    return response.json();
+    headers: { Authorization: token },
   });
+  if (!res.ok) {
+    throw new Error("Не удалось поставить лайк");
+  }
+  const data = await res.json();
+  return data.post || data;
 }
 
-export function loginUser({ login, password }) {
-  return fetch(baseHost + "/api/user/login", {
+/**
+ * Дизлайк (POST /:id/dislike)
+ */
+export async function removeLike({ token, postId }) {
+  if (!token) throw new Error("Требуется авторизация");
+  const res = await fetch(`${API_BASE}/${postId}/dislike`, {
     method: "POST",
-    body: JSON.stringify({
-      login,
-      password,
-    }),
-  }).then((response) => {
-    if (response.status === 400) {
-      throw new Error("Неверный логин или пароль");
-    }
-    return response.json();
+    headers: { Authorization: token },
   });
+  if (!res.ok) {
+    throw new Error("Не удалось убрать лайк");
+  }
+  const data = await res.json();
+  return data.post || data;
 }
 
-// Загружает картинку в облако, возвращает url загруженной картинки
-export function uploadImage({ file }) {
-  const data = new FormData();
-  data.append("file", file);
-
-  return fetch(baseHost + "/api/upload/image", {
-    method: "POST",
-    body: data,
-  }).then((response) => {
-    return response.json();
+/**
+ * Удалить пост (DELETE /:id)
+ */
+export async function deletePost({ token, postId }) {
+  if (!token) throw new Error("Требуется авторизация");
+  const res = await fetch(`${API_BASE}/${postId}`, {
+    method: "DELETE",
+    headers: { Authorization: token },
   });
+  if (!res.ok) {
+    throw new Error("Не удалось удалить пост");
+  }
+  return res.json();
+}
+
+/* ----------------- API для пользователей ----------------- */
+
+/**
+ * Регистрация
+ * POST https://wedev-api.sky.pro/api/user
+ * body: { login, name, password }
+ */
+export async function registerUser({ login, name, password }) {
+  const res = await fetch(`${USERS_API}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ login, name, password }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data && data.message) || "Ошибка регистрации");
+  }
+  const data = await res.json();
+  return data.user;
+}
+
+/**
+ * Авторизация
+ * POST https://wedev-api.sky.pro/api/user/login
+ * body: { login, password }
+ */
+export async function loginUser({ login, password }) {
+  const res = await fetch(`${USERS_API}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ login, password }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data && data.message) || "Ошибка входа");
+  }
+  const data = await res.json();
+  return data.user;
 }

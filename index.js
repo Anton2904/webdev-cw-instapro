@@ -1,133 +1,166 @@
-import { getPosts } from "./api.js";
+import { POSTS_PAGE, ADD_POSTS_PAGE, AUTH_PAGE, USER_POSTS_PAGE, ROOT } from "./routes.js";
+import { getPosts, createPost, getUserPosts, addLike, removeLike, loginUser, registerUser } from "./api.js";
+import { saveUser, clearUser, getStoredUser, getStoredToken } from "./helpers.js";
+
+import { renderPostsPageComponent } from "./components/posts-page-component.js";
 import { renderAddPostPageComponent } from "./components/add-post-page-component.js";
 import { renderAuthPageComponent } from "./components/auth-page-component.js";
-import {
-  ADD_POSTS_PAGE,
-  AUTH_PAGE,
-  LOADING_PAGE,
-  POSTS_PAGE,
-  USER_POSTS_PAGE,
-} from "./routes.js";
-import { renderPostsPageComponent } from "./components/posts-page-component.js";
-import { renderLoadingPageComponent } from "./components/loading-page-component.js";
-import {
-  getUserFromLocalStorage,
-  removeUserFromLocalStorage,
-  saveUserToLocalStorage,
-} from "./helpers.js";
+import { renderHeaderComponent } from "./components/header-component.js";
 
-export let user = getUserFromLocalStorage();
-export let page = null;
+const appEl = document.getElementById("app");
+
+// состояние
 export let posts = [];
+export let currentPage = ROOT;
+export let currentData = null;
 
-const getToken = () => {
-  const token = user ? `Bearer ${user.token}` : undefined;
-  return token;
-};
+// утилиты для других модулей
+export function goToPage(page, data) {
+  currentPage = page;
+  currentData = data || null;
+  renderApp();
+}
 
-export const logout = () => {
-  user = null;
-  removeUserFromLocalStorage();
-  goToPage(POSTS_PAGE);
-};
+export function getToken() {
+  return getStoredToken();
+}
 
-/**
- * Включает страницу приложения
- */
-export const goToPage = (newPage, data) => {
-  if (
-    [
-      POSTS_PAGE,
-      AUTH_PAGE,
-      ADD_POSTS_PAGE,
-      USER_POSTS_PAGE,
-      LOADING_PAGE,
-    ].includes(newPage)
-  ) {
-    if (newPage === ADD_POSTS_PAGE) {
-      /* Если пользователь не авторизован, то отправляем его на страницу авторизации перед добавлением поста */
-      page = user ? ADD_POSTS_PAGE : AUTH_PAGE;
-      return renderApp();
-    }
+export function getCurrentUserId() {
+  const u = getStoredUser();
+  if (!u) return null;
+  return u && (u.id || u._id) ? (u.id || u._id) : null;
+}
 
-    if (newPage === POSTS_PAGE) {
-      page = LOADING_PAGE;
-      renderApp();
+// инициализация: загрузить посты
+async function loadPosts() {
+  try {
+    posts = await getPosts();
+  } catch (e) {
+    console.error("Не удалось загрузить посты", e);
+    posts = [];
+  }
+}
 
-      return getPosts({ token: getToken() })
-        .then((newPosts) => {
-          page = POSTS_PAGE;
-          posts = newPosts;
-          renderApp();
-        })
-        .catch((error) => {
-          console.error(error);
+async function renderApp() {
+  // общая обёртка: header + content handled by components
+  // header component сам рисует в контейнере в компонентах
+  // Но здесь обеспечим данные и маршрутизацию
+
+  // ensure posts loaded before rendering main pages that need them
+  if (!posts || posts.length === 0) {
+    await loadPosts();
+  }
+
+  if (currentPage === ROOT || currentPage === POSTS_PAGE) {
+    // render posts feed
+    const pageContainer = document.createElement("div");
+    pageContainer.className = "page-container";
+    appEl.innerHTML = "";
+    appEl.appendChild(pageContainer);
+    renderPostsPageComponent({ appEl: pageContainer });
+    return;
+  }
+
+  if (currentPage === ADD_POSTS_PAGE) {
+    const pageContainer = document.createElement("div");
+    pageContainer.className = "page-container";
+    appEl.innerHTML = "";
+    appEl.appendChild(pageContainer);
+    renderAddPostPageComponent({
+      appEl: pageContainer,
+      user: getStoredUser(),
+      onAddPostClick: async ({ description, imageUrl }) => {
+        const token = getToken();
+        if (!token) {
+          alert("Требуется войти в систему");
+          goToPage(AUTH_PAGE);
+          return;
+        }
+        try {
+          await createPost({ token, description, imageUrl });
+          // обновим ленту
+          posts = await getPosts();
           goToPage(POSTS_PAGE);
-        });
-    }
-
-    if (newPage === USER_POSTS_PAGE) {
-      // @@TODO: реализовать получение постов юзера из API
-      console.log("Открываю страницу пользователя: ", data.userId);
-      page = USER_POSTS_PAGE;
-      posts = [];
-      return renderApp();
-    }
-
-    page = newPage;
-    renderApp();
-
+        } catch (err) {
+          console.error("Ошибка создания поста", err);
+          alert("Не удалось добавить пост: " + (err.message || err));
+        }
+      },
+    });
     return;
   }
 
-  throw new Error("страницы не существует");
-};
-
-const renderApp = () => {
-  const appEl = document.getElementById("app");
-  if (page === LOADING_PAGE) {
-    return renderLoadingPageComponent({
-      appEl,
-      user,
-      goToPage,
-    });
-  }
-
-  if (page === AUTH_PAGE) {
-    return renderAuthPageComponent({
-      appEl,
-      setUser: (newUser) => {
-        user = newUser;
-        saveUserToLocalStorage(user);
-        goToPage(POSTS_PAGE);
+  if (currentPage === AUTH_PAGE) {
+    const pageContainer = document.createElement("div");
+    pageContainer.className = "page-container";
+    appEl.innerHTML = "";
+    appEl.appendChild(pageContainer);
+    renderAuthPageComponent({
+      appEl: pageContainer,
+      onLogin: async ({ login, password }) => {
+        try {
+          const user = await loginUser({ login, password });
+          saveUser(user);
+          // обновим ленту (т.к. isLiked может зависеть от пользователя)
+          posts = await getPosts();
+          goToPage(POSTS_PAGE);
+        } catch (err) {
+          alert("Ошибка входа: " + (err.message || err));
+        }
       },
-      user,
-      goToPage,
-    });
-  }
-
-  if (page === ADD_POSTS_PAGE) {
-    return renderAddPostPageComponent({
-      appEl,
-      onAddPostClick({ description, imageUrl }) {
-        // @TODO: реализовать добавление поста в API
-        console.log("Добавляю пост...", { description, imageUrl });
-        goToPage(POSTS_PAGE);
+      onRegister: async ({ login, name, password }) => {
+        try {
+          const user = await registerUser({ login, name, password });
+          saveUser(user);
+          posts = await getPosts();
+          goToPage(POSTS_PAGE);
+        } catch (err) {
+          alert("Ошибка регистрации: " + (err.message || err));
+        }
       },
     });
-  }
-
-  if (page === POSTS_PAGE) {
-    return renderPostsPageComponent({
-      appEl,
-    });
-  }
-
-  if (page === USER_POSTS_PAGE) {
-    // @TODO: реализовать страницу с фотографиями отдельного пользвателя
-    appEl.innerHTML = "Здесь будет страница фотографий пользователя";
     return;
   }
-};
 
-goToPage(POSTS_PAGE);
+  if (currentPage === USER_POSTS_PAGE) {
+    const pageContainer = document.createElement("div");
+    pageContainer.className = "page-container";
+    appEl.innerHTML = "";
+    appEl.appendChild(pageContainer);
+    const userId = currentData && currentData.userId;
+    if (!userId) {
+      pageContainer.innerHTML = "<p>Пользователь не указан</p>";
+      return;
+    }
+    try {
+      const userPosts = await getUserPosts(userId);
+      renderPostsPageComponent({ appEl: pageContainer, postsForRender: userPosts });
+    } catch (err) {
+      // fallback: отфильтровать локально
+      const filtered = posts.filter((p) => {
+        const uid = (p.user && (p.user.id || p.user._id)) || "";
+        return uid === userId;
+      });
+      renderPostsPageComponent({ appEl: pageContainer, postsForRender: filtered });
+    }
+    return;
+  }
+
+  // fallback
+  goToPage(POSTS_PAGE);
+}
+
+// render header globally in a top area (the components also render header into header-container inside page containers)
+function initGlobalHeader() {
+  // insert header at top of body (above app)
+  // We'll let each page show own header area — skip global header
+}
+
+// start
+(async function main() {
+  // initial route
+  await loadPosts();
+  goToPage(POSTS_PAGE);
+})();
+
+
