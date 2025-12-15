@@ -62,36 +62,56 @@ export function renderPostsPageComponent({ appEl, postsForRender } = {}) {
   });
 
   document.querySelectorAll(".like-button").forEach((btn) => {
-    btn.addEventListener("click", async (event) => {
-      event.stopPropagation();
-      const postId = btn.dataset.postId;
-      if (!postId) return;
-      try {
-        const token = typeof getToken === "function" ? getToken() : null;
-        if (!token) {
-          alert("Требуется войти в систему");
-          goToPage("/auth");
-          return;
-        }
-
-        const img = btn.querySelector("img");
-        const isLikedNow = img && img.getAttribute("src").includes("like-active");
-        if (isLikedNow) {
-          await removeLike({ token, postId });
-        } else {
-          await addLike({ token, postId });
-        }
-
-        // после изменения получим свежие посты и перерисуем
-        const { getPosts } = await import("../api.js");
-        const fresh = await getPosts();
-        // заменим глобальные posts — импортированный модуль index.js держит posts
-        // Импортировать posts напрямую здесь рискованно; проще вызвать goToPage на POSTS_PAGE
-        goToPage(POSTS_PAGE);
-      } catch (err) {
-        console.error("Ошибка лайка", err);
-        alert("Не удалось обновить лайк");
+  btn.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const postId = btn.dataset.postId;
+    if (!postId) return;
+    
+    try {
+      const token = typeof getToken === "function" ? getToken() : null;
+      if (!token) {
+        alert("Требуется войти в систему");
+        goToPage("/auth");
+        return;
       }
-    });
+
+      const img = btn.querySelector("img");
+      const isLikedNow = img && img.getAttribute("src").includes("like-active");
+      const countEl = document.querySelector(`.likes-count[data-post-id="${postId}"]`);
+
+      // 1. Мгновенно меняем UI (оптимистичное обновление)
+      if (img) {
+        img.src = isLikedNow ? "./assets/images/like-not-active.svg" : "./assets/images/like-active.svg";
+      }
+      if (countEl) {
+        const current = parseInt(countEl.textContent || "0", 10);
+        countEl.textContent = isLikedNow ? Math.max(0, current - 1) : current + 1;
+      }
+
+      // 2. Отправляем запрос к API
+      let updatedPost;
+      if (isLikedNow) {
+        updatedPost = await removeLike({ token, postId });
+      } else {
+        updatedPost = await addLike({ token, postId });
+      }
+
+      // 3. Обновляем локальные данные
+      if (updatedPost && window.posts) {
+        const postIndex = window.posts.findIndex(p => 
+          (p.id || p._id) === postId
+        );
+        if (postIndex !== -1) {
+          window.posts[postIndex] = updatedPost;
+        }
+      }
+
+    } catch (err) {
+      console.error("Ошибка лайка", err);
+      alert("Не удалось обновить лайк");
+      // Откатываем UI, если API запрос не удался
+      goToPage(POSTS_PAGE); // или window.location.reload();
+    }
   });
+});
 }

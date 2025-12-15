@@ -1,66 +1,58 @@
 import { renderHeaderComponent } from "./header-component.js";
-import { renderUploadImageComponent } from "./upload-image-component.js";
 
-export function renderAddPostPageComponent({ appEl, onAddPostClick, user }) {
-  const appHtml = `
+export function renderAddPostPageComponent({ appEl, user, onAddPostClick }) {
+  appEl.innerHTML = `
     <div class="header-container"></div>
     <div style="padding:8px;">
       <h2>Добавить пост</h2>
-
-      <div class="add-post-form__row">
-        <label>Фото</label>
-        <div class="add-post-form__image-input"></div>
+      <div>
+        <input class="input-inline post-description" placeholder="Описание поста" />
       </div>
-
-      <div class="add-post-form__row">
-        <label>Описание</label>
-        <textarea class="add-post-form__description" rows="4" placeholder="Напишите описание..."></textarea>
+      <div style="margin-top:8px;">
+        <input class="input-inline post-image" placeholder="Ссылка на изображение (https://...)" />
       </div>
-
-      <div class="add-post-form__row">
-        <button class="add-post-form__button">Опубликовать</button>
+      <div style="margin-top:8px;">
+        <button class="add-post-button">Добавить пост</button>
       </div>
     </div>
   `;
 
-  appEl.innerHTML = appHtml;
-
   renderHeaderComponent({ element: document.querySelector(".header-container") });
 
-  const imageContainer = appEl.querySelector(".add-post-form__image-input");
-  const descriptionInput = appEl.querySelector(".add-post-form__description");
-  const submitButton = appEl.querySelector(".add-post-form__button");
+  const descInput = appEl.querySelector(".post-description");
+  const imgInput = appEl.querySelector(".post-image");
+  const addBtn = appEl.querySelector(".add-post-button");
 
-  let uploadedImageUrl = "";
+  addBtn.addEventListener("click", async () => {
+    const description = descInput.value.trim();
+    const imageUrl = imgInput.value.trim();
 
-  renderUploadImageComponent({
-    element: imageContainer,
-    onImageUrlChange: (url) => {
-      uploadedImageUrl = url;
-    },
-  });
-
-  submitButton.addEventListener("click", async () => {
-    const description = descriptionInput.value.trim();
-    if (!uploadedImageUrl) {
-      alert("Пожалуйста, загрузите изображение (или вставьте URL).");
+    if (!description || !imageUrl) {
+      alert("Заполните описание и ссылку на изображение");
       return;
     }
-    if (!description) {
-      alert("Пожалуйста, добавьте описание.");
-      return;
-    }
-    submitButton.disabled = true;
-    submitButton.textContent = "Публикация...";
+
+    addBtn.disabled = true;
+
     try {
       if (typeof onAddPostClick === "function") {
-        await onAddPostClick({ description, imageUrl: uploadedImageUrl });
+        await onAddPostClick({ description, imageUrl });
       }
+      descInput.value = "";
+      imgInput.value = "";
     } catch (err) {
-      alert("Ошибка при добавлении поста: " + (err.message || err));
+      console.error("Ошибка создания поста", err);
+      let errorText = "Не удалось добавить пост: ";
+      if (err instanceof Error) {
+        errorText += err.message;
+      } else if (typeof err === "object") {
+        errorText += JSON.stringify(err);
+      } else {
+        errorText += err;
+      }
+      alert(errorText);
     } finally {
-      submitButton.disabled = false;
-      submitButton.textContent = "Опубликовать";
+      addBtn.disabled = false;
     }
   });
 }
