@@ -6,20 +6,20 @@ export function renderHeaderComponent({ element }) {
   const user = getStoredUser();
 
   element.innerHTML = `
-    <div class="header">
-      <h1 class="header__logo">Instapro</h1>
+    <div class="header-container">
+      <h1 class="header__logo">instapro</h1>
 
       <div class="header__actions">
         ${
           user
             ? `
-              <span class="header__button header__button-add">Добавить</span>
-              <span class="header__button header__button-logout">Выйти</span>
+              <button class="header__button header__button-add">Добавить</button>
+              <button class="header__button header__button-logout">Выйти</button>
             `
             : `
-              <span class="header__button header__button-login">
+              <button class="header__button header__button-login">
                 Войти
-              </span>
+              </button>
             `
         }
       </div>

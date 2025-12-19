@@ -117,10 +117,10 @@ export function renderPostsPageComponent({ appEl, postsForRender } = {}) {
     .join("");
 
   appEl.innerHTML = `
-    <div class="page-container">
+    
       <div class="header-container"></div>
       <div class="posts-container">${postsHtml}</div>
-    </div>
+   
   `;
 
   renderHeaderComponent({ element: appEl.querySelector(".header-container") });
