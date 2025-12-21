@@ -1,97 +1,134 @@
-// API wrapper — использует ключ prod
-const API_BASE = "https://wedev-api.sky.pro/api/v1/prod/instapro";
-const USERS_API = "https://wedev-api.sky.pro/api/user";
+// Замени personalKey на свой, чтобы получить независимый от других набор данных.
+// "боевая" версия Instapro лежит в ключе prod.
+// Документация: https://wedev-api.sky.pro/api/v1/:personal-key/instapro
+const personalKey = "prod";
 
-export async function getPosts() {
-  const res = await fetch(`${API_BASE}/`);
-  if (!res.ok) throw new Error("Не удалось получить посты");
-  const data = await res.json();
-  return data.posts || [];
+const baseHost = "https://wedev-api.sky.pro";
+const postsHost = `${baseHost}/api/v1/${personalKey}/instapro`;
+
+export function getPosts({ token }) {
+  return fetch(postsHost, {
+    method: "GET",
+    headers: {
+      Authorization: token,
+    },
+  })
+    .then((response) => {
+      if (response.status === 401) {
+        throw new Error("Нет авторизации");
+      }
+
+      return response.json();
+    })
+    .then((data) => {
+      return data.posts;
+    });
 }
 
-export async function getUserPosts(userId) {
-  const res = await fetch(`${API_BASE}/user-posts/${userId}`);
-  if (!res.ok) throw new Error("Не удалось получить посты пользователя");
-  const data = await res.json();
-  return data.posts || [];
+export function getUserPosts({ userId, token }) {
+  return fetch(`${postsHost}/user-posts/${userId}`, {
+    method: "GET",
+    headers: {
+      Authorization: token,
+    },
+  })
+    .then((response) => {
+      if (response.status === 401) {
+        throw new Error("Нет авторизации");
+      }
+      return response.json();
+    })
+    .then((data) => data.posts);
 }
 
-export async function createPost({ token, description, imageUrl }) {
-  if (!token) throw new Error("Требуется авторизация");
-  if (!description || !imageUrl) throw new Error("Описание и ссылка на изображение обязательны");
-
-  const authHeader = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-
-  const res = await fetch(`${API_BASE}/`, {
+export function addPost({ description, imageUrl, token }) {
+  return fetch(postsHost, {
     method: "POST",
     headers: {
-      Authorization: authHeader,
-      
+      Authorization: token,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({ description, imageUrl }),
+  }).then((response) => {
+    if (response.status === 401) {
+      throw new Error("Нет авторизации");
+    }
+    if (response.status === 400) {
+      throw new Error("Некорректные данные поста");
+    }
+    return response.json();
   });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "Некорректные данные");
-  }
-  return data;
 }
 
-export async function addLike({ token, postId }) {
-  if (!token) throw new Error("Требуется авторизация");
-  const authHeader = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/${postId}/like`, {
+export function likePost({ postId, token }) {
+  return fetch(`${postsHost}/${postId}/like`, {
     method: "POST",
-    headers: { Authorization: authHeader }, // ТОЛЬКО Authorization
+    headers: {
+      Authorization: token,
+    },
+  }).then((response) => {
+    if (response.status === 401) {
+      throw new Error("Нет авторизации");
+    }
+    return response.json();
   });
-  if (!res.ok) throw new Error("Не удалось поставить лайк");
-  const data = await res.json();
-  return data.post || data;
 }
 
-export async function removeLike({ token, postId }) {
-  if (!token) throw new Error("Требуется авторизация");
-  const authHeader = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/${postId}/dislike`, {
+export function dislikePost({ postId, token }) {
+  return fetch(`${postsHost}/${postId}/dislike`, {
     method: "POST",
-    headers: { Authorization: authHeader },
+    headers: {
+      Authorization: token,
+    },
+  }).then((response) => {
+    if (response.status === 401) {
+      throw new Error("Нет авторизации");
+    }
+    return response.json();
   });
-  if (!res.ok) throw new Error("Не удалось убрать лайк");
-  const data = await res.json();
-  return data.post || data;
 }
 
-export async function deletePost({ token, postId }) {
-  if (!token) throw new Error("Требуется авторизация");
-  const authHeader = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/${postId}`, {
-    method: "DELETE",
-    headers: { Authorization: authHeader },
-  });
-  if (!res.ok) throw new Error("Не удалось удалить пост");
-  return res.json();
-}
-
-/* ----------------- API для пользователей ----------------- */
-
-export async function registerUser({ login, name, password }) {
-  const res = await fetch(`${USERS_API}`, {
+export function registerUser({ login, password, name, imageUrl }) {
+  return fetch(baseHost + "/api/user", {
     method: "POST",
-    body: JSON.stringify({ login, name, password }),
+    body: JSON.stringify({
+      login,
+      password,
+      name,
+      imageUrl,
+    }),
+  }).then((response) => {
+    if (response.status === 400) {
+      throw new Error("Такой пользователь уже существует");
+    }
+    return response.json();
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || "Ошибка регистрации");
-  return data.user;
 }
 
-export async function loginUser({ login, password }) {
-  const res = await fetch(`${USERS_API}/login`, {
+export function loginUser({ login, password }) {
+  return fetch(baseHost + "/api/user/login", {
     method: "POST",
-    body: JSON.stringify({ login, password }),
+    body: JSON.stringify({
+      login,
+      password,
+    }),
+  }).then((response) => {
+    if (response.status === 400) {
+      throw new Error("Неверный логин или пароль");
+    }
+    return response.json();
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || "Ошибка входа");
-  return data.user;
+}
+
+// Загружает картинку в облако, возвращает url загруженной картинки
+export function uploadImage({ file }) {
+  const data = new FormData();
+  data.append("file", file);
+
+  return fetch(baseHost + "/api/upload/image", {
+    method: "POST",
+    body: data,
+  }).then((response) => {
+    return response.json();
+  });
 }

@@ -1,95 +1,172 @@
+import { loginUser, registerUser } from "../api.js";
 import { renderHeaderComponent } from "./header-component.js";
+import { renderUploadImageComponent } from "./upload-image-component.js";
 
-export function renderAuthPageComponent({ appEl, onLogin, onRegister }) {
-  const appHtml = `
-    <div class="header-container"></div>
-    <div style="padding:8px;">
-      <div class="center">
-        <h2>Вход / Регистрация</h2>
-      </div>
+/**
+ * Компонент страницы авторизации.
+ * Этот компонент предоставляет пользователю интерфейс для входа в систему или регистрации.
+ * Форма переключается между режимами "Вход" и "Регистрация".
+ *
+ * @param {HTMLElement} params.appEl - Корневой элемент приложения, в который будет рендериться страница.
+ * @param {Function} params.setUser - Функция, вызываемая при успешной авторизации или регистрации.
+ *                                    Принимает объект пользователя в качестве аргумента.
+ */
+export function renderAuthPageComponent({ appEl, setUser }) {
+  /**
+   * Флаг, указывающий текущий режим формы.
+   * Если `true`, форма находится в режиме входа. Если `false`, в режиме регистрации.
+   * @type {boolean}
+   */
+  let isLoginMode = true;
 
-      <div style="display:flex;gap:20px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:260px;">
-          <h3>Войти</h3>
-          <div>
-            <input class="input-inline login-login" placeholder="Логин" />
+  /**
+   * URL изображения, загруженного пользователем при регистрации.
+   * Используется только в режиме регистрации.
+   * @type {string}
+   */
+  let imageUrl = "";
+
+  /**
+   * Рендерит форму авторизации или регистрации.
+   * В зависимости от значения `isLoginMode` отображает соответствующий интерфейс.
+   */
+  const renderForm = () => {
+    const appHtml = `
+      <div class="page-container">
+          <div class="header-container"></div>
+          <div class="form">
+              <h3 class="form-title">
+                ${
+                  isLoginMode
+                    ? "Вход в&nbsp;Instapro"
+                    : "Регистрация в&nbsp;Instapro"
+                }
+              </h3>
+              <div class="form-inputs">
+                  ${
+                    !isLoginMode
+                      ? `
+                      <div class="upload-image-container"></div>
+                      <input type="text" id="name-input" class="input" placeholder="Имя" />
+                      `
+                      : ""
+                  }
+                  <input type="text" id="login-input" class="input" placeholder="Логин" />
+                  <input type="password" id="password-input" class="input" placeholder="Пароль" />
+                  <div class="form-error"></div>
+                  <button class="button" id="login-button">${
+                    isLoginMode ? "Войти" : "Зарегистрироваться"
+                  }</button>
+              </div>
+              <div class="form-footer">
+                <p class="form-footer-title">
+                  ${isLoginMode ? "Нет аккаунта?" : "Уже есть аккаунт?"}
+                  <button class="link-button" id="toggle-button">
+                    ${isLoginMode ? "Зарегистрироваться." : "Войти."}
+                  </button>
+                </p>
+              </div>
           </div>
-          <div style="margin-top:8px;">
-            <input type="password" class="input-inline login-password" placeholder="Пароль" />
-          </div>
-          <div style="margin-top:8px;">
-            <button class="login-button">Войти</button>
-          </div>
-        </div>
+      </div>    
+    `;
 
-        <div style="flex:1;min-width:260px;">
-          <h3>Регистрация</h3>
-          <div>
-            <input class="input-inline reg-login" placeholder="Логин" />
-          </div>
-          <div style="margin-top:8px;">
-            <input class="input-inline reg-name" placeholder="Имя" />
-          </div>
-          <div style="margin-top:8px;">
-            <input type="password" class="input-inline reg-password" placeholder="Пароль" />
-          </div>
-          <div style="margin-top:8px;">
-            <button class="reg-button">Зарегистрироваться</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+    appEl.innerHTML = appHtml;
 
-  appEl.innerHTML = appHtml;
+    /**
+     * Устанавливает сообщение об ошибке в форме.
+     * @param {string} message - Текст сообщения об ошибке.
+     */
+    const setError = (message) => {
+      appEl.querySelector(".form-error").textContent = message;
+    };
 
-  renderHeaderComponent({ element: document.querySelector(".header-container") });
+    // Рендерим заголовок страницы
+    renderHeaderComponent({
+      element: document.querySelector(".header-container"),
+    });
 
-  const loginInput = appEl.querySelector(".login-login");
-  const loginPass = appEl.querySelector(".login-password");
-  const loginBtn = appEl.querySelector(".login-button");
-
-  const regLogin = appEl.querySelector(".reg-login");
-  const regName = appEl.querySelector(".reg-name");
-  const regPass = appEl.querySelector(".reg-password");
-  const regBtn = appEl.querySelector(".reg-button");
-
-  loginBtn.addEventListener("click", async () => {
-    const login = loginInput.value.trim();
-    const password = loginPass.value;
-    if (!login || !password) {
-      alert("Введите логин и пароль");
-      return;
+    // Если режим регистрации, рендерим компонент загрузки изображения
+    const uploadImageContainer = appEl.querySelector(".upload-image-container");
+    if (uploadImageContainer) {
+      renderUploadImageComponent({
+        element: uploadImageContainer,
+        onImageUrlChange(newImageUrl) {
+          imageUrl = newImageUrl;
+        },
+      });
     }
-    loginBtn.disabled = true;
-    try {
-      if (typeof onLogin === "function") {
-        await onLogin({ login, password });
+
+    // Обработка клика на кнопку входа/регистрации
+    document.getElementById("login-button").addEventListener("click", () => {
+      setError("");
+
+      if (isLoginMode) {
+        // Обработка входа
+        const login = document.getElementById("login-input").value;
+        const password = document.getElementById("password-input").value;
+
+        if (!login) {
+          alert("Введите логин");
+          return;
+        }
+
+        if (!password) {
+          alert("Введите пароль");
+          return;
+        }
+
+        loginUser({ login, password })
+          .then((user) => {
+            setUser(user.user);
+          })
+          .catch((error) => {
+            console.warn(error);
+            setError(error.message);
+          });
+      } else {
+        // Обработка регистрации
+        const login = document.getElementById("login-input").value;
+        const name = document.getElementById("name-input").value;
+        const password = document.getElementById("password-input").value;
+
+        if (!name) {
+          alert("Введите имя");
+          return;
+        }
+
+        if (!login) {
+          alert("Введите логин");
+          return;
+        }
+
+        if (!password) {
+          alert("Введите пароль");
+          return;
+        }
+
+        if (!imageUrl) {
+          alert("Не выбрана фотография");
+          return;
+        }
+
+        registerUser({ login, password, name, imageUrl })
+          .then((user) => {
+            setUser(user.user);
+          })
+          .catch((error) => {
+            console.warn(error);
+            setError(error.message);
+          });
       }
-    } catch (e) {
-      alert("Ошибка входа: " + (e.message || e));
-    } finally {
-      loginBtn.disabled = false;
-    }
-  });
+    });
 
-  regBtn.addEventListener("click", async () => {
-    const login = regLogin.value.trim();
-    const name = regName.value.trim();
-    const password = regPass.value;
-    if (!login || !name || !password) {
-      alert("Заполните все поля для регистрации");
-      return;
-    }
-    regBtn.disabled = true;
-    try {
-      if (typeof onRegister === "function") {
-        await onRegister({ login, name, password });
-      }
-    } catch (e) {
-      alert("Ошибка регистрации: " + (e.message || e));
-    } finally {
-      regBtn.disabled = false;
-    }
-  });
+    // Обработка переключения режима (вход ↔ регистрация)
+    document.getElementById("toggle-button").addEventListener("click", () => {
+      isLoginMode = !isLoginMode;
+      renderForm(); // Перерисовываем форму с новым режимом
+    });
+  };
+
+  // Инициализация формы
+  renderForm();
 }
