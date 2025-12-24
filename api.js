@@ -41,22 +41,40 @@ export function getUserPosts({ userId, token }) {
     .then((data) => data.posts);
 }
 
+// Создание поста.
+// В ответах API у поста используется поле `description`, поэтому при создании отправляем `description`.
 export function addPost({ description, imageUrl, token }) {
   return fetch(postsHost, {
     method: "POST",
     headers: {
       Authorization: token,
-      "Content-Type": "application/json",
+     
     },
     body: JSON.stringify({ description, imageUrl }),
-  }).then((response) => {
+  }).then(async (response) => {
+    // fetch не падает на 4xx/5xx, поэтому делаем нормальную обработку ошибок
+    if (response.ok) {
+      return response.json();
+    }
+
+    let details = "";
+    try {
+      const data = await response.json();
+      details = data?.error || data?.message || JSON.stringify(data);
+    } catch (e) {
+      try {
+        details = await response.text();
+      } catch (e2) {
+        details = "";
+      }
+    }
+
     if (response.status === 401) {
       throw new Error("Нет авторизации");
     }
-    if (response.status === 400) {
-      throw new Error("Некорректные данные поста");
-    }
-    return response.json();
+
+    // Показываем подробности сервера, чтобы быстрее отладить причину 400
+    throw new Error(details ? `Ошибка публикации (${response.status}): ${details}` : `Ошибка публикации (${response.status})`);
   });
 }
 
