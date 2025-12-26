@@ -1,11 +1,24 @@
-import { USER_POSTS_PAGE, AUTH_PAGE } from "../routes.js";
+import { POSTS_PAGE, AUTH_PAGE } from "../routes.js";
 import { renderHeaderComponent } from "./header-component.js";
-import { posts, goToPage, user } from "../index.js";
+import { posts, goToPage, user, pageData } from "../index.js";
 import { dislikePost, likePost } from "../api.js";
 import { escapeHtml, formatDistanceToNowRu } from "../helpers.js";
 
-export function renderPostsPageComponent({ appEl }) {
+export function renderUserPostsPageComponent({ appEl }) {
+  const viewedUser = posts[0]?.user;
+
   const render = () => {
+    const headerBlock = viewedUser
+      ? `
+        <div class="posts-user-header">
+          <img src="${viewedUser.imageUrl}" class="posts-user-header__user-image" alt="${escapeHtml(
+          viewedUser.name
+        )}">
+          <p class="posts-user-header__user-name">${escapeHtml(viewedUser.name)}</p>
+        </div>
+      `
+      : `<p>У пользователя пока нет постов</p>`;
+
     const postsHtml = posts
       .map((post) => {
         const likesCount = post.likes?.length ?? 0;
@@ -15,13 +28,6 @@ export function renderPostsPageComponent({ appEl }) {
 
         return `
           <li class="post" data-post-id="${post.id}">
-            <div class="post-header" data-user-id="${post.user.id}">
-              <img src="${post.user.imageUrl}" class="post-header__user-image" alt="${escapeHtml(
-          post.user.name
-        )}">
-              <p class="post-header__user-name">${escapeHtml(post.user.name)}</p>
-            </div>
-
             <div class="post-image-container">
               <img class="post-image" src="${post.imageUrl}" alt="${escapeHtml(
           post.description || ""
@@ -50,6 +56,10 @@ export function renderPostsPageComponent({ appEl }) {
     const appHtml = `
       <div class="page-container">
         <div class="header-container"></div>
+
+        <button class="link-button" id="back-button">← Назад</button>
+        ${headerBlock}
+
         <ul class="posts">
           ${postsHtml}
         </ul>
@@ -58,15 +68,11 @@ export function renderPostsPageComponent({ appEl }) {
 
     appEl.innerHTML = appHtml;
 
-    renderHeaderComponent({
-      element: document.querySelector(".header-container"),
-    });
+    renderHeaderComponent({ element: document.querySelector(".header-container") });
 
-    for (const userEl of document.querySelectorAll(".post-header")) {
-      userEl.addEventListener("click", () => {
-        goToPage(USER_POSTS_PAGE, { userId: userEl.dataset.userId });
-      });
-    }
+    document.getElementById("back-button").addEventListener("click", () => {
+      goToPage(POSTS_PAGE);
+    });
 
     for (const likeButton of document.querySelectorAll(".like-button")) {
       likeButton.addEventListener("click", (event) => {
